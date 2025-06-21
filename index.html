@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Expense Manager</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#4a90e2">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" sizes="192x192" href="icons/icon-192.png">
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --background: #f4f6f8;
+      --primary: #4a90e2;
+      --accent: #50e3c2;
+      --text: #333;
+      --shadow: 0px 4px 12px rgba(0,0,0,0.10);
+      --radius: 16px;
+      --danger: #f85a5a;
+      --muted: #b0bec5;
+      --offline: #ffd700;
+    }
+    * { box-sizing: border-box; }
+
+    body {
+      background: var(--background);
+      color: var(--text);
+      font-family: 'Inter', Arial, sans-serif;
+      margin: 0; padding: 0;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      transition: background 0.3s;
+      overscroll-behavior: none;
+    }
+    #app {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: 96px;
+      min-height: 100vh;
+      transition: padding-bottom 0.3s;
+    }
+    .hidden { display: none !important; }
+    .fade-in { animation: fadein 0.3s; }
+    @keyframes fadein { from { opacity:0; } to { opacity:1; } }
+
+    /* Loader */
+    .loader {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid var(--primary);
+      border-radius: 50%;
+      width: 36px; height: 36px;
+      animation: spin 1s linear infinite;
+      margin: 32px auto;
+    }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    /* Card */
+    .card {
+      background: #fff;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px 16px;
+      margin: 12px 0;
+      display: flex; flex-direction: column;
+      transition: box-shadow 0.2s;
+    }
+    .card:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.12); }
+
+    /* Buttons */
+    .btn {
+      padding: 10px 18px;
+      border: none;
+      border-radius: var(--radius);
+      background: var(--primary);
+      color: #fff;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+      outline: none;
+      margin: 6px 0;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-accent { background: var(--accent); }
+    .btn-danger { background: var(--danger); }
+    .btn-muted { background: var(--muted); color: #fff; }
+    .btn[disabled] { background: var(--muted); cursor: not-allowed; }
+
+    /* Inputs */
+    input, select, textarea {
+      border: 1.5px solid #dde3e8;
+      border-radius: var(--radius);
+      padding: 9px 13px;
+      font-size: 1rem;
+      margin-bottom: 10px;
+      width: 100%;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--primary); }
+
+    label { font-size: 0.98rem; margin-bottom: 4px; font-weight: 500; color: var(--primary); }
+
+    /* Category Tag */
+    .cat-tag {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-right: 8px;
+      color: #fff;
+      background: var(--primary);
+      vertical-align: middle;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    /* Expense List */
+    .expense-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .expense-row .expense-info { flex: 1; }
+    .expense-name { font-weight: 600; }
+    .expense-date { font-size: 0.9em; color: #888; }
+    .expense-amt { font-weight: bold; color: var(--primary); }
+    .expense-actions { display: flex; align-items: center; gap: 6px; }
+
+    /* Modal */
+    .modal-overlay {
+      background: rgba(0,0,0,0.14);
+      position: fixed; z-index: 888;
+      left:0; right:0; top:0; bottom:0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.25s;
+    }
+    .modal {
+      background: #fff;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px 18px 18px 18px;
+      width: 96%;
+      max-width: 370px;
+      margin: 0 auto;
+      animation: fadein 0.2s;
+      position: relative;
+    }
+
+    .modal .close-btn {
+      position: absolute;
+      top: 16px; right: 18px;
+      background: transparent;
+      border: none;
+      font-size: 1.4em;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    /* Bottom Navigation + FAB */
+    .bottom-nav {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      z-index: 1001;
+      height: 70px;
+      background: transparent; /* Notched effect with SVG */
+      display: flex;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .bottom-bar {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      height: 62px;
+      background: #fff;
+      border-top-left-radius: 32px;
+      border-top-right-radius: 32px;
+      box-shadow: 0px -3px 16px rgba(0,0,0,0.11);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      pointer-events: all;
+      transition: box-shadow 0.2s;
+      overflow: visible;
+    }
+    .bottom-bar svg {
+      position: absolute;
+      top: -27px; left: 50%;
+      transform: translateX(-50%);
+      z-index: 1;
+      pointer-events: none;
+    }
+    .nav-btn {
+      background: none;
+      border: none;
+      color: var(--text);
+      font-size: 1.3em;
+      margin: 0 10px;
+      transition: color 0.2s;
+      cursor: pointer;
+      outline: none;
+      z-index: 2;
+      pointer-events: all;
+    }
+    .nav-btn.active, .nav-btn:focus { color: var(--primary); }
+    .nav-btn:active { color: var(--accent); }
+
+    /* FAB */
+    .fab-btn {
+      position: absolute;
+      left: 50%;
+      bottom: 22px;
+      transform: translateX(-50%);
+      z-index: 3;
+      width: 62px;
+      height: 62px;
+      border-radius: 50%;
+      background: var(--primary);
+      border: none;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.11);
+      color: #fff;
+      font-size: 2em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s, transform 0.09s;
+      cursor: pointer;
+      outline: none;
+      pointer-events: all;
+    }
+    .fab-btn:active { background: var(--accent); transform: translateX(-50%) scale(0.98); }
+
+    /* Offline Indicator */
+    #offline-indicator {
+      position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+      background: var(--offline);
+      color: #444;
+      padding: 7px 16px;
+      border-radius: 12px;
+      font-weight: bold;
+      z-index: 3000;
+      box-shadow: var(--shadow);
+      display: none;
+      transition: opacity 0.3s;
+    }
+
+    /* Category color picker */
+    .color-preview {
+      display: inline-block;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      border: 2.5px solid #dde3e8;
+      vertical-align: middle;
+      margin-right: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.13);
+    }
+
+    /* SVG Chart */
+    .svg-chart {
+      width: 100%; max-width: 340px; height: 170px;
+      margin: 0 auto 18px auto;
+      display: block;
+      background: none;
+    }
+    .svg-legend {
+      display: flex; flex-wrap: wrap;
+      gap: 10px 18px; margin: 10px 0 0 0;
+      justify-content: center;
+    }
+    .svg-legend-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.96rem;
+    }
+    .svg-legend-color {
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 2px;
+      border: 1.5px solid #eee;
+    }
+
+    /* Responsive */
+    @media (min-width: 700px) {
+      .modal { max-width: 440px; }
+      #app { max-width: 540px; margin: 0 auto; }
+      .bottom-bar { max-width: 540px; left: 50%; transform: translateX(-50%); }
+      .bottom-bar svg { left: 50%; }
+      .bottom-nav { left: 50%; transform: translateX(-50%); width: 100%; max-width: 540px; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- Authentication -->
+  <div id="auth-view" class="fade-in" style="display:none;">
+    <div style="margin: 90px auto 0 auto; max-width: 330px; text-align: center;">
+      <img src="icons/icon-192.png" alt="logo" width="72" style="margin-bottom: 20px; border-radius: 50%;">
+      <h2 style="font-weight: 700; color: var(--primary); letter-spacing: -0.5px;">Expense Manager</h2>
+      <div id="auth-loader" class="loader"></div>
+      <div id="auth-btns" style="display:none;">
+        <button class="btn" id="google-signin-btn" style="width:100%; margin-bottom:10px;">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="22" style="vertical-align:middle; margin-right:8px;">
+          Sign in with Google
+        </button>
+        <button class="btn btn-muted" id="anon-signin-btn" style="width:100%;">
+          Continue as Guest
+        </button>
+      </div>
+      <div id="auth-error" style="color:var(--danger); margin-top:10px; min-height:24px;"></div>
+    </div>
+  </div>
+
+  <!-- Main UI -->
+  <div id="main-ui" style="display:none;">
+    <!-- Daily View -->
+    <section id="view-daily" class="fade-in"></section>
+    <!-- Monthly View -->
+    <section id="view-monthly" class="fade-in hidden"></section>
+    <!-- Categories View -->
+    <section id="view-categories" class="fade-in hidden"></section>
+    <!-- Logout View -->
+    <section id="view-logout" class="fade-in hidden"></section>
+  </div>
+</div>
+
+<!-- Add Expense Modal -->
+<div id="modal-overlay" class="modal-overlay hidden"></div>
+
+<!-- Offline Indicator -->
+<div id="offline-indicator">Offline mode</div>
+
+<!-- Bottom Navigation and FAB -->
+<div class="bottom-nav" id="bottom-nav" style="display:none;">
+  <div class="bottom-bar">
+    <!-- Notched SVG for FAB -->
+    <svg width="82" height="38" viewBox="0 0 82 38" fill="none">
+      <path d="M0 38 Q41 0 82 38" fill="#fff" />
+    </svg>
+    <button class="nav-btn" data-nav="daily" title="Daily">
+      <span>📅</span>
+    </button>
+    <button class="nav-btn" data-nav="monthly" title="Monthly">
+      <span>📈</span>
+    </button>
+    <div style="width:72px; display:inline-block;"></div>
+    <button class="nav-btn" data-nav="categories" title="Categories">
+      <span>🏷️</span>
+    </button>
+    <button class="nav-btn" data-nav="logout" title="Logout">
+      <span>🚪</span>
+    </button>
+    <button class="fab-btn" id="fab-btn" title="Add Expense" aria-label="Add Expense">
+      ＋
+    </button>
+  </div>
+</div>
+
+<script>
+/** ==== FIREBASE INIT ==== **/
+const firebaseConfig = {
+  apiKey: "AIzaSyCD6TOeIO7g6RGp89YtA1maduwMfyTE1VQ",
+  authDomain: "my-expenses-81714.firebaseapp.com",
+  projectId: "my-expenses-81714",
+  storageBucket: "my-expenses-81714.appspot.com",
+  messagingSenderId: "672207051964",
+  appId: "1:672207051964:web:b6e0cedc143bd06fd584b9",
+  measurementId: "G-YBTY3QD4YQ"
+};
+firebase.initializeApp(firebaseConfig);
+firebase.analytics();
+const auth = firebase.auth();
+const db = firebase.firestore();
+db.enablePersistence().catch(()=>{});
+
+/** ==== GLOBAL STATE ==== **/
+let currentUser = null;    // Firebase user object
+let categories = [];       // [{id, name, color}]
+let expenses = [];         // [{id, name, amount, category, date}]
+let monthlyTotals = {};    // {categoryId: total}
+let currentView = 'daily';
+let isOffline = !navigator.onLine;
+
+/** ==== UTILS ==== **/
+function $(sel) { return document.querySelector(sel); }
+function show(el) { if (el) el.style.display=''; }
+function hide(el) { if (el) el.style.display='none'; }
+function html(el, txt) { if (el) el.innerHTML=txt; }
+function clearChildren(el) { while(el.firstChild)el.removeChild(el.firstChild);}
+function formatAmt(a) { return '₱' + (+a).toFixed(2); }
+function formatDate(dt) {
+  return new Date(dt).toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'});
+}
+function todayISO() {
+  let d = new Date();
+  d.setHours(0,0,0,0);
+  return d.toISOString().slice(0,10);
+}
+function pad(n){return n<10?'0'+n:n;}
+function toISO(y,m,d){return `${y}-${pad(m)}-${pad(d)}`;}
+function isSameDay(a,b){ return a.slice(0,10)===b.slice(0,10);}
+function randomPastel() {
+  let h = Math.floor(Math.random()*360);
+  return `hsl(${h}, 58%, 78%)`;
+}
+function uuid() { return '_' + Math.random().toString(36).substr(2, 9); }
+function sleep(ms) { return new Promise(res=>setTimeout(res,ms)); }
+
+/** ==== OFFLINE INDICATOR ==== **/
+function updateOfflineIndicator() {
+  let ind = $("#offline-indicator");
+  if (isOffline) {
+    ind.style.display = 'block';
+  } else {
+    ind.style.display = 'none';
+  }
+}
+window.addEventListener('online', ()=>{isOffline=false;updateOfflineIndicator();});
+window.addEventListener('offline', ()=>{isOffline=true;updateOfflineIndicator();});
+
+/** ==== AUTH ==== **/
+function showAuthView() {
+  hide($('#main-ui'));
+  show($('#auth-view'));
+  hide($('#auth-btns'));
+  show($('#auth-loader'));
+  html($('#auth-error'), '');
+}
+function showAuthBtns() {
+  hide($('#auth-loader'));
+  show($('#auth-btns'));
+}
+function showMainUI() {
+  hide($('#auth-view'));
+  show($('#main-ui'));
+  show($('#bottom-nav'));
+}
+function signInWithGoogle() {
+  let provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(e=>{
+    html($('#auth-error'), e.message || "Sign-in failed.");
+  });
+}
+function signInAnonymously() {
+  auth.signInAnonymously().catch(e=>{
+    html($('#auth-error'), e.message || "Sign-in failed.");
+  });
+}
+function signOut() {
+  auth.signOut();
+}
+$("#google-signin-btn").onclick = signInWithGoogle;
+$("#anon-signin-btn").onclick = signInAnonymously;
+
+/** ==== NAVIGATION ==== **/
+function navigate(view) {
+  ['daily','monthly','categories','logout'].forEach(v=>{
+    hide($(`#view-${v}`));
+    $(`.nav-btn[data-nav="${v}"]`)?.classList.remove('active');
+  });
+  show($(`#view-${view}`));
+  $(`.nav-btn[data-nav="${view}"]`)?.classList.add('active');
+  currentView = view;
+  if (view==='daily') renderDaily();
+  if (view==='monthly') renderMonthly();
+  if (view==='categories') renderCategories();
+  if (view==='logout') renderLogout();
+}
+Array.from(document.querySelectorAll('.nav-btn')).forEach(btn=>{
+  btn.onclick = ()=>{ navigate(btn.getAttribute('data-nav'));};
+});
+
+/** ==== MODALS ==== **/
+function showModal(htmlContent) {
+  let overlay = $('#modal-overlay');
+  overlay.innerHTML = `<div class="modal fade-in">${htmlContent}</div>`;
+  overlay.classList.remove('hidden');
+  setTimeout(()=>overlay.classList.add('fade-in'),5);
+  overlay.onclick = e=>{
+    if (e.target.id==='modal-overlay') closeModal();
+  };
+  overlay.querySelector('.close-btn')?.addEventListener('click',closeModal);
+}
+function closeModal() {
+  let overlay = $('#modal-overlay');
+  overlay.classList.add('hidden');
+  overlay.innerHTML = '';
+}
+
+/** ==== CATEGORY CRUD ==== **/
+function fetchCategories() {
+  db.collection('users').doc(currentUser.uid).collection('categories')
+    .orderBy('name').onSnapshot(snap=>{
+      categories = snap.docs.map(d=>({...d.data(),id:d.id}));
+      if (currentView==='categories') renderCategories();
+    });
+}
+function addCategory(name, color) {
+  return db.collection('users').doc(currentUser.uid).collection('categories').add({
+    name: name.trim(),
+    color: color || randomPastel(),
+    created: firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+function deleteCategory(id) {
+  return db.collection('users').doc(currentUser.uid).collection('categories').doc(id).delete();
+}
+
+/** ==== EXPENSE CRUD ==== **/
+function fetchExpenses() {
+  db.collection('users').doc(currentUser.uid).collection('expenses')
+    .orderBy('date','desc').onSnapshot(snap=>{
+      expenses = snap.docs.map(d=>({...d.data(),id:d.id}));
+      if (currentView==='daily') renderDaily();
+      if (currentView==='monthly') renderMonthly();
+    });
+}
+function addExpense(exp) {
+  return db.collection('users').doc(currentUser.uid).collection('expenses').add(exp);
+}
+function deleteExpense(id) {
+  return db.collection('users').doc(currentUser.uid).collection('expenses').doc(id).delete();
+}
+
+/** ==== DAILY VIEW ==== **/
+function renderDaily() {
+  let cont = $('#view-daily');
+  clearChildren(cont);
+  let today = todayISO();
+  let dayExpenses = expenses.filter(e=>isSameDay(e.date, today));
+  let total = dayExpenses.reduce((s,e)=>s+Number(e.amount),0);
+  let h = `<h2 style="margin-bottom:8px;">Today's Expenses</h2>`;
+  h += `<div style="font-size:1.12em;margin-bottom:14px;">Total: <b>${formatAmt(total)}</b></div>`;
+  if (dayExpenses.length===0) {
+    h += `<div style="color:#888;">No expenses for today.</div>`;
+  } else {
+    dayExpenses.forEach(e=>{
+      let cat = categories.find(c=>c.id===e.category);
+      h += `
+      <div class="card expense-row">
+        <div class="expense-info">
+          <span class="expense-name">${e.name}</span>
+          <span class="cat-tag" style="background:${cat?.color||'var(--primary)'};">${cat?.name||'Uncategorized'}</span>
+          <span class="expense-amt">${formatAmt(e.amount)}</span>
+          <div class="expense-date">${formatDate(e.date)}</div>
+        </div>
+        <div class="expense-actions">
+          <button class="btn btn-danger btn-del-exp" data-id="${e.id}" title="Delete">🗑️</button>
+        </div>
+      </div>`;
+    });
+  }
+  cont.innerHTML = h;
+  Array.from(cont.querySelectorAll('.btn-del-exp')).forEach(btn=>{
+    btn.onclick = ()=>{
+      let id = btn.getAttribute('data-id');
+      showModal(`
+        <button class="close-btn" title="Close">&times;</button>
+        <h3>Delete Expense?</h3>
+        <div style="margin-bottom:18px;">Are you sure you want to delete this expense?</div>
+        <button class="btn btn-danger" id="confirm-del-exp">Delete</button>
+      `);
+      $('#confirm-del-exp').onclick = ()=>{
+        deleteExpense(id).then(closeModal);
+      };
+    };
+  });
+}
+
+/** ==== MONTHLY VIEW ==== **/
+function renderMonthly() {
+  let cont = $('#view-monthly');
+  clearChildren(cont);
+  // Group by month
+  let now = new Date();
+  let y = now.getFullYear(), m = now.getMonth()+1;
+  let monthStr = toISO(y,m,1).slice(0,7);
+  let monthExpenses = expenses.filter(e=>e.date.slice(0,7)===monthStr);
+  let total = monthExpenses.reduce((s,e)=>s+Number(e.amount),0);
+  // Category totals
+  let catTotals = {};
+  monthExpenses.forEach(e=>{
+    if (!catTotals[e.category]) catTotals[e.category]=0;
+    catTotals[e.category]+=Number(e.amount);
+  });
+  // Top categories
+  let topCats = Object.keys(catTotals).sort((a,b)=>catTotals[b]-catTotals[a]).slice(0,2);
+  // Chart data
+  let chartData = Object.entries(catTotals).map(([catId, amt])=>{
+    let cat = categories.find(c=>c.id===catId);
+    return {name: cat?.name||'Unknown', color: cat?.color||'#ccc', value: amt};
+  });
+  // UI
+  let h = `<h2 style="margin-bottom:8px;">Monthly Overview</h2>
+    <div style="font-size:1.12em;margin-bottom:14px;">Total this month: <b>${formatAmt(total)}</b></div>
+  `;
+  if (monthExpenses.length===0) {
+    h += `<div style="color:#888;">No expenses for this month.</div>`;
+    cont.innerHTML = h;
+    return;
+  }
+  // SVG Pie Chart
+  h += renderPieChart(chartData, total);
+  // Top categories
+  if (topCats.length) {
+    h += `<div style="margin-top:12px;">Top: `;
+    topCats.forEach(cid=>{
+      let cat = categories.find(c=>c.id===cid);
+      h += `<span class="cat-tag" style="background:${cat?.color||'#ccc'};">${cat?.name||'Unknown'}</span>`;
+    });
+    h += `</div>`;
+  }
+  cont.innerHTML = h;
+}
+
+/** ==== PIE CHART RENDER ==== **/
+function renderPieChart(data, total) {
+  if (!total || data.length===0) return '';
+  // Calculate arcs
+  let cx=85, cy=85, r=70, circ=2*Math.PI*r;
+  let offset = 0, svg = '';
+  data.forEach((d,i)=>{
+    let frac = d.value/total, len = frac*circ;
+    let color = d.color;
+    svg += `<circle
+      r="${r}" cx="${cx}" cy="${cy}"
+      fill="none" stroke="${color}"
+      stroke-width="24"
+      stroke-dasharray="${len} ${circ-len}"
+      stroke-dashoffset="-${offset}"
+      style="transition:stroke-dasharray 0.7s"
+    />`;
+    offset += len;
+  });
+  // Legend
+  let legend = data.map(d=>
+    `<div class="svg-legend-item">
+      <span class="svg-legend-color" style="background:${d.color};"></span>
+      ${d.name} (${formatAmt(d.value)})
+    </div>`
+  ).join('');
+  return `
+    <svg class="svg-chart" width="170" height="170" viewBox="0 0 170 170">
+      ${svg}
+    </svg>
+    <div class="svg-legend">${legend}</div>
+  `;
+}
+
+/** ==== CATEGORIES VIEW ==== **/
+function renderCategories() {
+  let cont = $('#view-categories');
+  clearChildren(cont);
+  let h = `<h2 style="margin-bottom:8px;">Categories</h2>`;
+  h += `<form id="cat-form" class="card" autocomplete="off">
+    <label for="cat-name">New Category Name</label>
+    <input id="cat-name" maxlength="18" required placeholder="e.g. Food, Travel">
+    <label for="cat-color">Color</label>
+    <input id="cat-color" type="color" value="${randomPastelToHex()}" style="width:80px;">
+);
+    h += `
+      <div class="card" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>
+          <span class="color-preview" style="background:${cat.color};"></span>
+          <b>${cat.name}</b>
+        </span>
+        <button class="btn btn-danger btn-del-cat" data-id="${cat.id}" ${used?'disabled':''} title="${used?'Cannot delete, in use':''}">🗑️</button>
+      </div>
+    `;
+  });
+  h += `</div>`;
+  cont.innerHTML = h;
+  // Events
+  $('#cat-form').onsubmit = e=>{
+    e.preventDefault();
+    let name = $('#cat-name').value.trim();
+    let color = $('#cat-color').value;
+    if (!name) return;
+    addCategory(name, color).then(()=>{
+      $('#cat-name').value='';
+      $('#cat-color').value=randomPastelToHex();
+    });
+  };
+  Array.from(cont.querySelectorAll('.btn-del-cat')).forEach(btn=>{
+    btn.onclick = ()=>{
+      let id = btn.getAttribute('data-id');
+      showModal(`
+        <button class="close-btn" title="Close">&times;</button>
+        <h3>Delete Category?</h3>
+        <div style="margin-bottom:18px;">Are you sure you want to delete this category?</div>
+        <button class="btn btn-danger" id="confirm-del-cat">Delete</button>
+      `);
+      $('#confirm-del-cat').onclick = ()=>{
+        deleteCategory(id).then(closeModal);
+      };
+    };
+  });
+}
+/** Category color random pastel to hex */
+function randomPastelToHex() {
+  let h = Math.floor(Math.random()*360), s=58, l=78;
+  let a=l/100,b=s*l/100,c=(a-b)*Math.min(Math.max((h%360)/60-1,0),1)+b;
+  let f = n => {
+    let k = (n + h/30)%12;
+    let color = l - s*Math.max(Math.min(k-3,9-k,1),-1)/100*l;
+    return Math.round(255*color/100).toString(16).padStart(2,'0');
+  };
+  return "#"+f(0)+f(8)+f(4);
+}
+
+/** ==== LOGOUT VIEW ==== **/
+function renderLogout() {
+  let cont = $('#view-logout');
+  clearChildren(cont);
+  cont.innerHTML = `
+    <div class="card" style="text-align:center;">
+      <h3>Sign out?</h3>
+      <div style="margin-bottom:15px;">You will need to sign in again to access your data.</div>
+      <button class="btn btn-danger" id="logout-confirm-btn">Logout</button>
+    </div>
+  `;
+  $('#logout-confirm-btn').onclick = signOut;
+}
+
+/** ==== FAB: ADD EXPENSE ==== **/
+$('#fab-btn').onclick = showAddExpenseModal;
+function showAddExpenseModal() {
+  let catOpts = categories.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  let today = todayISO();
+  let h = `
+    <button class="close-btn" title="Close">&times;</button>
+    <h3 style="margin-bottom:10px;">Add Expense</h3>
+    <form id="add-exp-form" autocomplete="off">
+      <label for="exp-name">Name</label>
+      <input id="exp-name" maxlength="32" required placeholder="e.g. Lunch, Taxi">
+      <label for="exp-amt">Amount</label>
+      <input id="exp-amt" type="number" min="0.01" step="0.01" required placeholder="0.00">
+      <label for="exp-cat">Category</label>
+      <select id="exp-cat" required>
+        <option value="">Select a category</option>
+        ${catOpts}
+      </select>
+      <label for="exp-date">Date</label>
+      <div id="date-picker-container"></div>
+      <button class="btn btn-accent" type="submit" style="margin-top:10px;">Add</button>
+      <div id="exp-form-error" style="color:var(--danger);margin-top:6px;min-height:22px;"></div>
+    </form>
+  `;
+  showModal(h);
+  // Render spinner date picker
+  renderSpinnerDatePicker('date-picker-container', today, {min:today,max:today});
+  // Form submit handler
+  $('#add-exp-form').onsubmit = e=>{
+    e.preventDefault();
+    let name = $('#exp-name').value.trim();
+    let amt = parseFloat($('#exp-amt').value);
+    let cat = $('#exp-cat').value;
+    let date = $('#exp-date').value;
+    if (!name || !cat || !date || isNaN(amt)||amt<=0) {
+      html($('#exp-form-error'), "Please fill all fields with valid values.");
+      return;
+    }
+    addExpense({name, amount: amt, category: cat, date, created: firebase.firestore.FieldValue.serverTimestamp()})
+      .then(()=>{
+        closeModal();
+      });
+  };
+}
+
+/** ==== SPINNER DATE PICKER ==== **/
+function renderSpinnerDatePicker(containerId, defaultISO, opts={}) {
+  let c = $(`#${containerId}`);
+  let d = defaultISO?new Date(defaultISO):new Date();
+  let y=d.getFullYear(), m=d.getMonth()+1, day=d.getDate();
+  let min = opts.min?new Date(opts.min):d, max = opts.max?new Date(opts.max):d;
+  let daysInMonth = (yy,mm)=>new Date(yy,mm,0).getDate();
+  function setDate(yy,mm,dd) {
+    y=yy;m=mm;day=dd;
+    // Clamp day
+    let maxD=daysInMonth(y,m);
+    if (day>maxD) day=maxD;
+    update();
+  }
+  function update(fadeDir) {
+    let maxD=daysInMonth(y,m);
+    let disablePrev = new Date(y,m-1,day)<=min;
+    let disableNext = new Date(y,m-1,day)>=max;
+    let fade = fadeDir?'fade-in':'';
+    c.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button type="button" class="btn btn-muted" id="prev-day" ${disablePrev?'disabled':''}>&lt;</button>
+        <input id="exp-date" type="hidden" value="${toISO(y,m,day)}">
+        <div style="font-size:1.12em;font-weight:600;min-width:110px;" class="${fade}">
+          ${toISO(y,m,day)}
+        </div>
+        <button type="button" class="btn btn-muted" id="next-day" ${disableNext?'disabled':''}>&gt;</button>
+      </div>
+    `;
+    $('#prev-day').onclick = ()=>{
+      let dt = new Date(y, m-1, day-1); setDate(dt.getFullYear(),dt.getMonth()+1,dt.getDate());
+      update('fade-in');
+    };
+    $('#next-day').onclick = ()=>{
+      let dt = new Date(y, m-1, day+1); setDate(dt.getFullYear(),dt.getMonth()+1,dt.getDate());
+      update('fade-in');
+    };
+  }
+  update();
+}
+
+/** ==== APP INIT ==== **/
+function appInit(user) {
+  currentUser = user;
+  showMainUI();
+  fetchCategories();
+  fetchExpenses();
+  navigate('daily');
+}
+
+/** ==== AUTH STATE HANDLER ==== **/
+auth.onAuthStateChanged(user=>{
+  if (!user) {
+    showAuthView();
+    setTimeout(showAuthBtns, 700); // small delay for spinner
+    return;
+  }
+  showMainUI();
+  appInit(user);
+});
+
+/** ==== PWA: SERVICE WORKER ==== **/
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+}
+
+/** ==== PWA INSTALL PROMPT ==== **/
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+});
+/* Optionally: you can add a custom "Add to Home" button and call
+   deferredPrompt.prompt() on click. */
+
+/** ==== INITIAL ==== **/
+updateOfflineIndicator();
+</script>
+</body>
+</html>

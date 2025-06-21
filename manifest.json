@@ -1,0 +1,23 @@
+{
+  "name": "مدير المصاريف",
+  "short_name": "المصاريف",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f4f6f8",
+  "theme_color": "#4a90e2",
+  "description": "تطبيق أنيق لإدارة المصاريف، يعمل بدون إنترنت مع مزامنة لحظية.",
+  "orientation": "portrait",
+  "lang": "ar",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
