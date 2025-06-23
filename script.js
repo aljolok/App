@@ -47,6 +47,7 @@ window.onload = async () => {
             await fetchAllData();
             renderActiveTabContent();
         } else {
+            // Ensure auth modal is visible if no user is signed in
             document.getElementById('auth-modal').classList.remove('hidden');
             document.getElementById('main-app-content').classList.add('hidden');
             console.log("لا يوجد مستخدم مسجل دخول.");
@@ -54,6 +55,7 @@ window.onload = async () => {
     });
 
     // Attempt initial sign-in with custom token or anonymously
+    // This initial attempt should trigger onAuthStateChanged
     try {
         if (window.__initial_auth_token) {
             await signInWithCustomToken(auth, window.__initial_auth_token);
@@ -64,12 +66,15 @@ window.onload = async () => {
         }
     } catch (error) {
         console.error("خطأ أثناء المصادقة الأولية:", error);
-        // Fallback to anonymous if custom token fails
+        // Fallback to anonymous if custom token fails, then onAuthStateChanged will handle UI
         try {
             await signInAnonymously(auth);
             console.log("تم تسجيل الدخول كمجهول بعد فشل الرمز المخصص.");
         } catch (anonError) {
             console.error("خطأ في تسجيل الدخول كمجهول:", anonError);
+            // If even anonymous fails, ensure auth modal is visible
+            document.getElementById('auth-modal').classList.remove('hidden');
+            document.getElementById('main-app-content').classList.add('hidden');
         }
     }
 
@@ -626,7 +631,11 @@ async function fetchSpendingAnalysis() {
 
         const result = await response.json();
         if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts.length > 0) {
-            analysisResultDiv.innerHTML = result.candidates[0].content.parts[0].text.replace(/\n/g, '<br/>'); // Preserve newlines
+            // Replace newlines with <br/> for display in HTML, also handle potential Markdown like **text**
+            let formattedText = result.candidates[0].content.parts[0].text;
+            formattedText = formattedText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); // Bold text
+            formattedText = formattedText.replace(/\n/g, '<br/>'); // Newlines
+            analysisResultDiv.innerHTML = formattedText;
             analysisResultDiv.classList.remove('hidden');
         } else {
             analysisError.textContent = "فشل الحصول على التحليل. (بنية استجابة LLM غير متوقعة)";
