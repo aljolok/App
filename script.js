@@ -142,13 +142,14 @@ function renderActiveTabContent() {
 
     // Reset tab active classes
     document.querySelectorAll('.tab-item').forEach(item => {
-        item.classList.remove('text-blue-600', 'font-bold', 'border-t-2', 'border-blue-600');
-        item.classList.add('text-gray-500', 'hover:text-blue-600');
+        item.classList.remove('active-tab');
     });
 
     // Set active class for current tab
-    document.getElementById(`tab-${currentActiveTab}`).classList.add('text-blue-600', 'font-bold', 'border-t-2', 'border-blue-600');
-    document.getElementById(`tab-${currentActiveTab}`).classList.remove('text-gray-500', 'hover:text-blue-600');
+    // Note: We use specific IDs for each tab item to manage their active state
+    if (document.getElementById(`tab-${currentActiveTab}`)) {
+        document.getElementById(`tab-${currentActiveTab}`).classList.add('active-tab');
+    }
 
 
     if (currentActiveTab === 'dashboard') {
@@ -157,6 +158,8 @@ function renderActiveTabContent() {
         renderCategories();
     } else if (currentActiveTab === 'profile') {
         renderProfile();
+    } else if (currentActiveTab === 'settings') { // New tab
+        renderSettings();
     }
 }
 
@@ -181,9 +184,9 @@ function renderDashboard() {
             <!-- Search and Filter -->
             <div class="mb-6 flex flex-col sm:flex-row gap-4">
                 <input type="text" id="dashboard-search-term" placeholder="البحث عن مصروف..."
-                    class="flex-1 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                    class="form-input">
                 <select id="dashboard-filter-category"
-                    class="p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                    class="form-input">
                     <option value="">جميع الفئات</option>
                     ${allCategories.map(cat => `<option value="${cat.name}">${cat.name}</option>`).join('')}
                 </select>
@@ -230,7 +233,7 @@ function updateFilteredExpenses() {
 
     const filtered = allExpenses.filter(expense => {
         const matchesSearch = expense.name.toLowerCase().includes(searchTerm) ||
-                              expense.description.toLowerCase().includes(searchTerm) ||
+                              (expense.description && expense.description.toLowerCase().includes(searchTerm)) || // Handle undefined description
                               expense.category.toLowerCase().includes(searchTerm);
         const matchesCategory = filterCategory === '' || expense.category === filterCategory;
         return matchesSearch && matchesCategory;
@@ -253,14 +256,10 @@ function updateFilteredExpenses() {
                 </div>
                 <div class="flex space-x-2 space-x-reverse">
                     <button data-id="${expense.id}" class="edit-expense-btn bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full text-sm">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                        </svg>
+                        <i class="fas fa-edit"></i>
                     </button>
                     <button data-id="${expense.id}" class="delete-expense-btn bg-red-500 hover:bg-red-600 text-white p-2 rounded-full text-sm">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1_1_0_00-1 1v3M4 7h16" />
-                        </svg>
+                        <i class="fas fa-trash-alt"></i>
                     </button>
                 </div>
             </div>
@@ -296,9 +295,7 @@ function renderCategories() {
             <button id="add-category-btn"
                 class="w-full bg-blue-600 text-white py-2 px-4 rounded-full mb-6 flex items-center justify-center hover:bg-blue-700 transition duration-300 ease-in-out">
                 <span class="flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                    </svg>
+                    <i class="fas fa-plus ml-2"></i>
                     إضافة فئة جديدة
                 </span>
             </button>
@@ -325,14 +322,10 @@ function renderCategories() {
                     </div>
                     <div class="flex space-x-2 space-x-reverse">
                         <button data-id="${category.id}" data-name="${category.name}" class="edit-category-btn bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full text-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                            </svg>
+                            <i class="fas fa-edit"></i>
                         </button>
                         <button data-id="${category.id}" data-name="${category.name}" class="delete-category-btn bg-red-500 hover:bg-red-600 text-white p-2 rounded-full text-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
+                            <i class="fas fa-trash-alt"></i>
                         </button>
                     </div>
                 </div>
@@ -478,6 +471,21 @@ function renderProfile() {
     `;
 }
 
+// Placeholder for a new settings tab
+function renderSettings() {
+    const mainContentArea = document.getElementById('main-content-area');
+    mainContentArea.innerHTML = `
+        <div class="p-4">
+            <h2 class="text-2xl font-bold mb-4 text-blue-800">الإعدادات</h2>
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <p class="text-gray-700">هنا ستتوفر إعدادات التطبيق مستقبلاً.</p>
+                <p class="text-gray-500 mt-2">يمكن إضافة خيارات مثل تغيير العملة، النسخ الاحتياطي للبيانات، إلخ.</p>
+            </div>
+        </div>
+    `;
+}
+
+
 // --- Modal Utilities ---
 function showModal(modalId) {
     document.getElementById(modalId).classList.remove('hidden');
@@ -489,6 +497,7 @@ function hideModal(modalId) {
     if (modalId === 'add-expense-modal') {
         document.getElementById('add-expense-form').reset();
         document.getElementById('add-expense-error').classList.add('hidden');
+        document.getElementById('expense-description').value = ''; // Ensure textarea is cleared
     } else if (modalId === 'add-category-modal') {
         document.getElementById('add-category-form').reset();
         document.getElementById('add-category-error').classList.add('hidden');
@@ -666,13 +675,15 @@ function attachEventListeners() {
                 categorySelect.value = allCategories[0].name; // Select first if 'أخرى' not found
             }
         }
+        document.getElementById('expense-date').value = new Date().toISOString().split('T')[0]; // Default date to today
     });
 
     // Navigation Tabs
     document.getElementById('tab-dashboard').addEventListener('click', () => { currentActiveTab = 'dashboard'; renderActiveTabContent(); });
     document.getElementById('tab-categories').addEventListener('click', () => { currentActiveTab = 'categories'; renderActiveTabContent(); });
-    document.getElementById('tab-add').addEventListener('click', () => { showModal('add-expense-modal'); }); // This tab is just a shortcut to the FAB action
+    // FAB already handles add, so no direct tab-add event needed now
     document.getElementById('tab-profile').addEventListener('click', () => { currentActiveTab = 'profile'; renderActiveTabContent(); });
+    document.getElementById('tab-settings').addEventListener('click', () => { currentActiveTab = 'settings'; renderActiveTabContent(); }); // New tab listener
 
     // Add Expense Modal
     document.getElementById('add-expense-form').addEventListener('submit', handleAddExpenseFormSubmit);
