@@ -11,8 +11,27 @@ let allCategories = []; // Stores all fetched categories
 let currentActiveTab = 'dashboard'; // Tracks the active navigation tab
 let currentEditingCategoryId = null; // Used for editing categories
 
+// Function to manage overall app visibility
+function updateAppVisibility(isAuthenticated) {
+    const authModal = document.getElementById('auth-modal');
+    const mainAppContent = document.getElementById('main-app-content');
+    console.log("تحديث رؤية التطبيق: هل المستخدم مصادق عليه؟", isAuthenticated);
+
+    if (isAuthenticated) {
+        authModal.classList.add('hidden');
+        mainAppContent.classList.remove('hidden');
+        console.log("تم إظهار المحتوى الرئيسي وإخفاء مودال المصادقة.");
+    } else {
+        authModal.classList.remove('hidden');
+        mainAppContent.classList.add('hidden');
+        console.log("تم إظهار مودال المصادقة وإخفاء المحتوى الرئيسي.");
+    }
+}
+
 // Function to initialize Firebase once the DOM is ready and Firebase SDKs are loaded
 window.onload = async () => {
+    console.log("بدء تهيئة التطبيق.");
+
     // Ensure Firebase objects are available from the window object
     app = window.initializeApp(window.firebaseConfig);
     auth = window.getAuth(app);
@@ -36,57 +55,52 @@ window.onload = async () => {
     orderBy = window.orderBy;
     getDocs = window.getDocs;
 
+    // Attach all event listeners immediately
+    attachEventListeners();
+    console.log("تم إرفاق مستمعي الأحداث.");
+
     // Listen for authentication state changes
     onAuthStateChanged(auth, async (user) => {
         currentUser = user;
+        console.log("تغيير حالة المصادقة. المستخدم الحالي:", currentUser ? currentUser.uid : "لا يوجد مستخدم");
+        updateAppVisibility(!!currentUser); // Update UI based on auth state
+
         if (currentUser) {
-            document.getElementById('auth-modal').classList.add('hidden');
-            document.getElementById('main-app-content').classList.remove('hidden');
-            console.log("تم تسجيل الدخول: ", currentUser.uid);
-            // Fetch initial data once user is authenticated
+            console.log("المستخدم مصادق عليه. جلب البيانات.");
             await fetchAllData();
             renderActiveTabContent();
         } else {
-            // Ensure auth modal is visible if no user is signed in
-            document.getElementById('auth-modal').classList.remove('hidden');
-            document.getElementById('main-app-content').classList.add('hidden');
-            console.log("لا يوجد مستخدم مسجل دخول.");
+            console.log("المستخدم غير مصادق عليه.");
+            // If onAuthStateChanged fires and user is null, it means no one is logged in.
+            // The updateAppVisibility(false) call above handles showing the auth modal.
         }
     });
 
     // Attempt initial sign-in with custom token or anonymously
-    // This initial attempt should trigger onAuthStateChanged
+    // This initial attempt should trigger onAuthStateChanged, which then updates UI
+    console.log("محاولة تسجيل الدخول الأولي.");
     try {
         if (window.__initial_auth_token) {
+            console.log("محاولة تسجيل الدخول باستخدام الرمز المخصص...");
             await signInWithCustomToken(auth, window.__initial_auth_token);
-            console.log("تم تسجيل الدخول بالرمز المخصص.");
         } else {
+            console.log("محاولة تسجيل الدخول كمجهول (لا يوجد رمز مخصص)...");
             await signInAnonymously(auth);
-            console.log("تم تسجيل الدخول كمجهول.");
         }
     } catch (error) {
-        console.error("خطأ أثناء المصادقة الأولية:", error);
-        // Fallback to anonymous if custom token fails, then onAuthStateChanged will handle UI
-        try {
-            await signInAnonymously(auth);
-            console.log("تم تسجيل الدخول كمجهول بعد فشل الرمز المخصص.");
-        } catch (anonError) {
-            console.error("خطأ في تسجيل الدخول كمجهول:", anonError);
-            // If even anonymous fails, ensure auth modal is visible
-            document.getElementById('auth-modal').classList.remove('hidden');
-            document.getElementById('main-app-content').classList.add('hidden');
-        }
+        console.error("خطأ أثناء المصادقة الأولية (الرمز المخصص/المجهول):", error);
+        // If initial authentication fails, ensure auth modal is visible explicitly
+        updateAppVisibility(false);
     }
-
-    // Attach all event listeners after Firebase is initialized
-    attachEventListeners();
 };
 
 // --- Authentication Functions ---
 async function handleGoogleSignIn() {
+    console.log("بدء تسجيل الدخول باستخدام Google.");
     const provider = new GoogleAuthProvider();
     try {
         await signInWithPopup(auth, provider);
+        console.log("Google Sign-In popup successful. Waiting for onAuthStateChanged...");
         // UI updates handled by onAuthStateChanged listener
     } catch (error) {
         console.error("خطأ أثناء تسجيل الدخول باستخدام Google:", error);
@@ -95,8 +109,10 @@ async function handleGoogleSignIn() {
 }
 
 async function handleAnonymousSignIn() {
+    console.log("بدء تسجيل الدخول كمجهول.");
     try {
         await signInAnonymously(auth);
+        console.log("Anonymous Sign-In successful. Waiting for onAuthStateChanged...");
         // UI updates handled by onAuthStateChanged listener
     } catch (error) {
         console.error("خطأ أثناء تسجيل الدخول كمجهول:", error);
@@ -105,6 +121,7 @@ async function handleAnonymousSignIn() {
 }
 
 function handleSignOut() {
+    console.log("بدء تسجيل الخروج.");
     signOut(auth)
         .then(() => console.log("تم تسجيل الخروج بنجاح."))
         .catch(error => console.error("خطأ في تسجيل الخروج:", error));
@@ -112,29 +129,37 @@ function handleSignOut() {
 
 // --- Data Fetching and Management (Firestore) ---
 async function fetchAllData() {
-    if (!currentUser || !db) return;
+    if (!currentUser || !db) {
+        console.log("تخطي جلب البيانات: المستخدم غير متوفر أو قاعدة البيانات غير مهيأة.");
+        return;
+    }
 
     const appId = window.__app_id;
     const userId = currentUser.uid;
 
+    console.log(`جلب الفئات للمستخدم: ${userId}`);
     // Fetch categories with real-time updates
     const categoriesCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/categories`);
     onSnapshot(categoriesCollectionRef, (snapshot) => {
         allCategories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log("تم جلب الفئات:", allCategories.length);
         // Ensure 'أخرى' category exists
         if (!allCategories.some(cat => cat.name === 'أخرى')) {
+            console.log("فئة 'أخرى' غير موجودة، تتم إضافتها.");
             addDoc(categoriesCollectionRef, { name: 'أخرى', createdAt: new Date().toISOString() })
-                .then(() => console.log("'أخرى' فئة مضافة."))
+                .then(() => console.log("'أخرى' فئة مضافة بنجاح."))
                 .catch(err => console.error("خطأ في إضافة فئة 'أخرى':", err));
         }
         renderActiveTabContent(); // Re-render content that depends on categories
     }, (error) => console.error("خطأ في جلب الفئات:", error));
 
+    console.log(`جلب المصاريف للمستخدم: ${userId}`);
     // Fetch expenses with real-time updates
     const expensesCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/expenses`);
     const q = query(expensesCollectionRef, orderBy('date', 'desc')); // Order by date for consistent display
     onSnapshot(q, (snapshot) => {
         allExpenses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log("تم جلب المصاريف:", allExpenses.length);
         renderActiveTabContent(); // Re-render content that depends on expenses
     }, (error) => console.error("خطأ في جلب المصاريف:", error));
 }
@@ -144,6 +169,7 @@ async function fetchAllData() {
 function renderActiveTabContent() {
     const mainContentArea = document.getElementById('main-content-area');
     mainContentArea.innerHTML = ''; // Clear previous content
+    console.log("تغيير التبويب النشط إلى:", currentActiveTab);
 
     // Reset tab active classes
     document.querySelectorAll('.tab-item').forEach(item => {
@@ -151,7 +177,6 @@ function renderActiveTabContent() {
     });
 
     // Set active class for current tab
-    // Note: We use specific IDs for each tab item to manage their active state
     if (document.getElementById(`tab-${currentActiveTab}`)) {
         document.getElementById(`tab-${currentActiveTab}`).classList.add('active-tab');
     }
