@@ -1,9 +1,0 @@
-{
-  "name": "تطبيق المصاريف",
-  "short_name": "مصاريف",
-  "start_url": "index.html",
-  "display": "standalone",
-  "background_color": "#F5F6FA",
-  "theme_color": "#1877F2",
-  "icons": []
-}
