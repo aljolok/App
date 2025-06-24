@@ -18,19 +18,19 @@ function updateAppVisibility(isAuthenticated) {
     console.log("تحديث رؤية التطبيق: هل المستخدم مصادق عليه؟", isAuthenticated);
 
     if (isAuthenticated) {
-        authModal.classList.add('hidden');
-        mainAppContent.classList.remove('hidden');
+        authModal.classList.add('hidden'); // Hide auth modal
+        mainAppContent.classList.remove('hidden'); // Show main content
         console.log("تم إظهار المحتوى الرئيسي وإخفاء مودال المصادقة.");
     } else {
-        authModal.classList.remove('hidden');
-        mainAppContent.classList.add('hidden');
+        authModal.classList.remove('hidden'); // Show auth modal
+        mainAppContent.classList.add('hidden'); // Hide main content
         console.log("تم إظهار مودال المصادقة وإخفاء المحتوى الرئيسي.");
     }
 }
 
 // Function to initialize Firebase once the DOM is ready and Firebase SDKs are loaded
 window.onload = async () => {
-    console.log("بدء تهيئة التطبيق.");
+    console.log("بدء تهيئة التطبيق. Window loaded.");
 
     // Ensure Firebase objects are available from the window object
     app = window.initializeApp(window.firebaseConfig);
@@ -60,6 +60,7 @@ window.onload = async () => {
     console.log("تم إرفاق مستمعي الأحداث.");
 
     // Listen for authentication state changes
+    // This is the primary mechanism for managing UI visibility
     onAuthStateChanged(auth, async (user) => {
         currentUser = user;
         console.log("تغيير حالة المصادقة. المستخدم الحالي:", currentUser ? currentUser.uid : "لا يوجد مستخدم");
@@ -67,30 +68,27 @@ window.onload = async () => {
 
         if (currentUser) {
             console.log("المستخدم مصادق عليه. جلب البيانات.");
-            await fetchAllData();
-            renderActiveTabContent();
+            await fetchAllData(); // Fetch data only after user is authenticated
+            renderActiveTabContent(); // Render dashboard/active tab
         } else {
-            console.log("المستخدم غير مصادق عليه.");
-            // If onAuthStateChanged fires and user is null, it means no one is logged in.
-            // The updateAppVisibility(false) call above handles showing the auth modal.
+            console.log("المستخدم غير مصادق عليه. تم عرض مودال المصادقة.");
         }
     });
 
-    // Attempt initial sign-in with custom token or anonymously
-    // This initial attempt should trigger onAuthStateChanged, which then updates UI
-    console.log("محاولة تسجيل الدخول الأولي.");
+    // Initial sign-in attempt (This will trigger onAuthStateChanged)
+    console.log("محاولة تسجيل الدخول الأولي: Checking __initial_auth_token...");
     try {
         if (window.__initial_auth_token) {
             console.log("محاولة تسجيل الدخول باستخدام الرمز المخصص...");
             await signInWithCustomToken(auth, window.__initial_auth_token);
         } else {
-            console.log("محاولة تسجيل الدخول كمجهول (لا يوجد رمز مخصص)...");
+            console.log("محاولة تسجيل الدخول كمجهول (لا يوجد رمز مخصص في Canvas)...");
             await signInAnonymously(auth);
         }
     } catch (error) {
         console.error("خطأ أثناء المصادقة الأولية (الرمز المخصص/المجهول):", error);
-        // If initial authentication fails, ensure auth modal is visible explicitly
-        updateAppVisibility(false);
+        // If initial authentication fails, onAuthStateChanged will set currentUser to null
+        // and updateAppVisibility(false) will be called, showing the auth modal.
     }
 };
 
@@ -100,8 +98,7 @@ async function handleGoogleSignIn() {
     const provider = new GoogleAuthProvider();
     try {
         await signInWithPopup(auth, provider);
-        console.log("Google Sign-In popup successful. Waiting for onAuthStateChanged...");
-        // UI updates handled by onAuthStateChanged listener
+        console.log("Google Sign-In popup successful. onAuthStateChanged سيقوم بالتحديث.");
     } catch (error) {
         console.error("خطأ أثناء تسجيل الدخول باستخدام Google:", error);
         alertUser("فشل تسجيل الدخول باستخدام Google. الرجاء المحاولة مرة أخرى.");
@@ -112,8 +109,7 @@ async function handleAnonymousSignIn() {
     console.log("بدء تسجيل الدخول كمجهول.");
     try {
         await signInAnonymously(auth);
-        console.log("Anonymous Sign-In successful. Waiting for onAuthStateChanged...");
-        // UI updates handled by onAuthStateChanged listener
+        console.log("Anonymous Sign-In successful. onAuthStateChanged سيقوم بالتحديث.");
     } catch (error) {
         console.error("خطأ أثناء تسجيل الدخول كمجهول:", error);
         alertUser("فشل تسجيل الدخول كمجهول. الرجاء المحاولة مرة أخرى.");
@@ -519,10 +515,12 @@ function renderSettings() {
 // --- Modal Utilities ---
 function showModal(modalId) {
     document.getElementById(modalId).classList.remove('hidden');
+    console.log(`تم إظهار المودال: ${modalId}`);
 }
 
 function hideModal(modalId) {
     document.getElementById(modalId).classList.add('hidden');
+    console.log(`تم إخفاء المودال: ${modalId}`);
     // Reset form fields and errors when hiding modals
     if (modalId === 'add-expense-modal') {
         document.getElementById('add-expense-form').reset();
@@ -734,3 +732,4 @@ function attachEventListeners() {
     // Spending Analysis Modal
     document.getElementById('close-analysis-modal').addEventListener('click', () => hideModal('spending-analysis-modal'));
 }
+
