@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تطبيق المصاريف</title>
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64," />
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+      // قم بتضمين Firebase SDKs هنا
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+      import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously, signOut, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+      import { getFirestore, collection, addDoc, onSnapshot, query, where, doc, updateDoc, deleteDoc, orderBy, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+      // قم بتخزين مثيلات Firebase في كائن عام أو Window لتتمكن script.js من الوصول إليها
+      window.firebaseConfig = {
+        apiKey: "AIzaSyC3_UZcAp_pnrWPI1U68qXZXe9NdN-aR4s",
+        authDomain: "menew-78832.firebaseapp.com",
+        projectId: "menew-78832",
+        storageBucket: "menew-78832.firebasestorage.app",
+        messagingSenderId: "399065956634",
+        appId: "1:399065956634:web:316614bafe4321b46f2ca3",
+        measurementId: "G-E6X2G758FT"
+      };
+
+      // المتغيرات العالمية من بيئة Canvas (سيتم توفيرها بواسطة Canvas)
+      window.__app_id = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+      window.__initial_auth_token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+      // تهيئة Firebase وجعلها متاحة لملف script.js
+      window.initializeApp = initializeApp;
+      window.getAuth = getAuth;
+      window.GoogleAuthProvider = GoogleAuthProvider;
+      window.signInWithPopup = signInWithPopup;
+      window.signInAnonymously = signInAnonymously;
+      window.signOut = signOut;
+      window.onAuthStateChanged = onAuthStateChanged;
+      window.signInWithCustomToken = signInWithCustomToken;
+      window.getFirestore = getFirestore;
+      window.collection = collection;
+      window.addDoc = addDoc;
+      window.onSnapshot = onSnapshot;
+      window.query = query;
+      window.where = where;
+      window.doc = doc;
+      window.updateDoc = updateDoc;
+      window.deleteDoc = deleteDoc;
+      window.orderBy = orderBy;
+      window.getDocs = getDocs;
+
+      // يتم تحميل script.js بعد أن يتم تعريف جميع متغيرات Firebase
+      const script = document.createElement('script');
+      script.src = 'script.js';
+      script.type = 'module'; // تأكد من أن السكربت كـ module
+      document.body.appendChild(script);
+    </script>
+  </head>
+  <body class="bg-blue-50 font-sans text-gray-800 flex flex-col min-h-screen">
+    <!-- Auth Modal Container -->
+    <div id="auth-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+      <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center" dir="rtl">
+        <h2 class="text-2xl font-bold mb-4 text-blue-800">مرحباً بك!</h2>
+        <p class="mb-6 text-gray-700">الرجاء تسجيل الدخول لمتابعة تتبع نفقاتك.</p>
+        <button id="google-signin-button-modal"
+          class="w-full bg-blue-600 text-white py-2 px-4 rounded-full mb-3 flex items-center justify-center hover:bg-blue-700 transition duration-300 ease-in-out"
+        >
+          <svg class="w-5 h-5 ml-2" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12.24 10.232v3.743h6.417c-.279 1.839-2.097 3.868-6.417 3.868-3.867 0-7.01-3.155-7.01-7.023s3.143-7.023 7.01-7.023c2.09 0 3.659.886 4.793 1.956l2.766-2.766C17.51 2.92 14.997 2 12.24 2c-5.467 0-9.923 4.456-9.923 9.923S6.773 21.846 12.24 21.846c5.297 0 9.176-3.793 9.176-8.826 0-.583-.053-1.077-.126-1.554H12.24z"/>
+          </svg>
+          تسجيل الدخول باستخدام جوجل
+        </button>
+        <button id="anonymous-signin-button-modal"
+          class="w-full bg-gray-300 text-gray-800 py-2 px-4 rounded-full hover:bg-gray-400 transition duration-300 ease-in-out"
+        >
+          المتابعة كمجهول
+        </button>
+      </div>
+    </div>
+
+    <!-- Main App Content (hidden until authenticated) -->
+    <div id="main-app-content" class="flex flex-col flex-1 hidden">
+      <!-- Header -->
+      <header class="bg-blue-600 text-white p-4 flex justify-between items-center shadow-md">
+        <h1 class="text-xl font-bold">تطبيق المصاريف</h1>
+        <button id="signout-button"
+          class="bg-blue-800 hover:bg-blue-900 text-white py-1 px-3 rounded-full text-sm transition duration-300 ease-in-out"
+        >
+          تسجيل الخروج
+        </button>
+      </header>
+
+      <!-- Main Content Area -->
+      <main id="main-content-area" class="flex-1 p-4 overflow-auto"></main>
+
+      <!-- Floating Action Button (FAB) -->
+      <button id="fab-add-expense"
+        class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-blue-600 text-white rounded-full p-4 shadow-lg hover:bg-blue-700 transition duration-300 ease-in-out z-50"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+      </button>
+
+      <!-- Navigation Tabs -->
+      <nav class="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t border-gray-200 z-40">
+        <ul class="flex justify-around items-center h-16">
+          <li id="tab-dashboard" class="tab-item flex-1 flex flex-col items-center justify-center cursor-pointer py-2 text-blue-600 font-bold border-t-2 border-blue-600">
+            <span class="text-xl mb-1">📊</span>
+            <span class="text-xs">الرئيسية</span>
+          </li>
+          <li id="tab-categories" class="tab-item flex-1 flex flex-col items-center justify-center cursor-pointer py-2 text-gray-500 hover:text-blue-600">
+            <span class="text-xl mb-1">📂</span>
+            <span class="text-xs">الفئات</span>
+          </li>
+          <li id="tab-add" class="tab-item flex-1 flex flex-col items-center justify-center cursor-pointer py-2 text-gray-500 hover:text-blue-600">
+            <span class="text-xl mb-1">➕</span>
+            <span class="text-xs">إضافة</span>
+          </li>
+          <li id="tab-profile" class="tab-item flex-1 flex flex-col items-center justify-center cursor-pointer py-2 text-gray-500 hover:text-blue-600">
+            <span class="text-xl mb-1">👤</span>
+            <span class="text-xs">البروفايل</span>
+          </li>
+        </ul>
+      </nav>
+
+      <!-- Modals (Add Expense, Add Category, Edit Category, Spending Analysis) -->
+
+      <!-- Add Expense Modal -->
+      <div id="add-expense-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full" dir="rtl">
+          <h2 class="text-2xl font-bold mb-4 text-blue-800">إضافة مصروف جديد</h2>
+          <p id="add-expense-error" class="text-red-500 mb-4 hidden"></p>
+          <form id="add-expense-form">
+            <div class="mb-4">
+              <label for="expense-name" class="block text-gray-700 text-sm font-bold mb-2">اسم المصروف:</label>
+              <input type="text" id="expense-name" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-blue-500 focus:border-blue-500" required>
+            </div>
+            <div class="mb-4">
+              <label for="expense-amount" class="block text-gray-700 text-sm font-bold mb-2">المبلغ (د.إ):</label>
+              <input type="number" id="expense-amount" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-blue-500 focus:border-blue-500" step="0.01" required>
+            </div>
+            <div class="mb-4">
+              <label for="expense-date" class="block text-gray-700 text-sm font-bold mb-2">التاريخ:</label>
+              <input type="date" id="expense-date" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-blue-500 focus:border-blue-500" required>
+            </div>
+            <div class="mb-4">
+              <label for="expense-category" class="block text-gray-700 text-sm font-bold mb-2">الفئة:</label>
+              <select id="expense-category" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-blue-500 focus:border-blue-500" required>
+                <!-- Categories will be loaded here by JavaScript -->
+              </select>
+            </div>
+            <div class="mb-6">
+              <label for="expense-description" class="block text-gray-700 text-sm font-bold mb-2">الوصف (اختياري):</label>
+              <textarea id="expense-description" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-blue-500 focus:border-blue-500" rows="3"></textarea>
+            </div>
+            <div class="flex items-center justify-between">
+              <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transition duration-300 ease-in-out">
+                إضافة المصروف
+              </button>
+              <button type="button" id="cancel-add-expense" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transition duration-300 ease-in-out">
+                إلغاء
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Add Category Modal -->
+      <div id="add-category-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full" dir="rtl">
+          <h2 class="text-2xl font-bold mb-4 text-blue-800">إضافة فئة جديدة</h2>
+          <p id="add-category-error" class="text-red-500 mb-4 hidden"></p>
+          <form id="add-category-form">
+            <div class="mb-4">
+              <label for="new-category-name" class="block text-gray-700 text-sm font-bold mb-2">اسم الفئة:</label>
+              <input type="text" id="new-category-name" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-blue-500 focus:border-blue-500" required>
+            </div>
+            <div class="flex items-center justify-between">
+              <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transition duration-300 ease-in-out">
+                إضافة الفئة
+              </button>
+              <button type="button" id="cancel-add-category" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transition duration-300 ease-in-out">
+                إلغاء
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Edit Category Modal -->
+      <div id="edit-category-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full" dir="rtl">
+          <h2 class="text-2xl font-bold mb-4 text-blue-800">تعديل الفئة</h2>
+          <p id="edit-category-error" class="text-red-500 mb-4 hidden"></p>
+          <form id="edit-category-form">
+            <div class="mb-4">
+              <label for="edit-category-name" class="block text-gray-700 text-sm font-bold mb-2">اسم الفئة:</label>
+              <input type="text" id="edit-category-name" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-blue-500 focus:border-blue-500" required>
+              <p id="edit-category-note" class="text-sm text-gray-500 mt-1 hidden">لا يمكن تعديل اسم فئة 'أخرى'.</p>
+            </div>
+            <div class="flex items-center justify-between">
+              <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transition duration-300 ease-in-out">
+                تحديث الفئة
+              </button>
+              <button type="button" id="cancel-edit-category" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transition duration-300 ease-in-out">
+                إلغاء
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Spending Analysis Modal -->
+      <div id="spending-analysis-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full mx-4 overflow-y-auto max-h-[90vh]" dir="rtl">
+          <h2 class="text-2xl font-bold mb-4 text-blue-800">تحليل المصاريف ✨</h2>
+          <p id="analysis-loading" class="text-center text-blue-600">جارٍ التحليل...<span class="animate-pulse">...</span></p>
+          <p id="analysis-error" class="text-red-500 mb-4 hidden"></p>
+          <div id="analysis-result" class="prose max-w-none hidden"></div>
+          <div class="flex justify-center mt-6">
+            <button type="button" id="close-analysis-modal" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transition duration-300 ease-in-out">
+              إغلاق
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
